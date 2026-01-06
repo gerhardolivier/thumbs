@@ -66,7 +66,7 @@ function getPeriodByWindow() {
   const hhmm = hour * 60 + minute;
 
   // AM window: 05:00–10:00 (adjust if you want)
-  if (hhmm >= 5 * 60 && hhmm <= 10 * 60) return "AM";
+  if (hhmm >= 5 * 60 && hhmm <= 15 * 60) return "AM";
 
   // PM window: 16:00–21:00
   if (hhmm >= 16 * 60 && hhmm <= 21 * 60) return "PM";
