@@ -3,12 +3,14 @@ const app = express();
 
 app.use(express.json());
 
-// Health check
 app.get("/", (req, res) => res.send("ok"));
 
-// Webhook from WasenderAPI
+// Add this so browser tests work
+app.get("/wa-webhook", (req, res) => res.send("webhook ok (GET)"));
+
+// Wasender will POST here
 app.post("/wa-webhook", (req, res) => {
-  console.log("INCOMING WEBHOOK:", JSON.stringify(req.body, null, 2));
+  console.log("WEBHOOK PAYLOAD:", JSON.stringify(req.body, null, 2));
   res.sendStatus(200);
 });
 
