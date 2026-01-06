@@ -46,7 +46,7 @@ async function startSock() {
   sock.ev.on("creds.update", saveCreds);
 
   sock.ev.on("messages.upsert", async ({ messages, type }) => {
-    if (type !== "notify") return;
+    // if (type !== "notify") return;
 
     for (const m of messages) {
       if (!m.message) continue;
