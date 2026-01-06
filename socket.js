@@ -70,4 +70,31 @@ async function sendBaileysText(toJid, text) {
   await sock.sendMessage(toJid, { text });
 }
 
-module.exports = { startSock, sendBaileysText };
+// Helper to send a special "Request Location" button
+async function sendLocationRequest(toJid, text) {
+  if (!sock) throw new Error("Socket not ready");
+
+  const msg = {
+    viewOnceMessage: {
+      message: {
+        interactiveMessage: {
+          body: { text: text },
+          nativeFlowMessage: {
+            buttons: [
+              {
+                name: "send_location",
+                buttonParamsJson: "", // No params needed for location
+              },
+            ],
+            messageVersion: 1,
+          },
+          type: 3, // 'native_flow' message
+        },
+      },
+    },
+  };
+
+  await sock.sendMessage(toJid, msg);
+}
+
+module.exports = { startSock, sendBaileysText, sendLocationRequest };

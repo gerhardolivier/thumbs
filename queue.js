@@ -13,12 +13,21 @@ async function run() {
 
   // FIX: Lazy load the socket here.
   // By the time this runs, socket.js is fully loaded, so no circular crash.
-  const { sendBaileysText } = require("./socket");
+  const { sendBaileysText, sendLocationRequest } = require("./socket");
 
   while (queue.length) {
     const { toJid, text } = queue.shift();
     try {
-      await sendBaileysText(toJid, text);
+      if (text === "___LOCATION_REQUEST___") {
+        // Special signal to send the button
+        await sendLocationRequest(
+          toJid,
+          "🚨 *SOS*: Please tap the button below to share your current location."
+        );
+      } else {
+        // Normal text
+        await sendBaileysText(toJid, text);
+      }
       console.log(`Sent to ${toJid}`);
     } catch (e) {
       console.error("SEND FAILED:", e);
