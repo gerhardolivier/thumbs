@@ -30,7 +30,7 @@ function getPeriodByWindow() {
   const hhmm = getMinutesNow();
 
   if (hhmm >= 5 * 60 && hhmm <= 15 * 60) return "AM";
-  if (hhmm >= 16 * 60 && hhmm <= 21 * 60) return "PM";
+  if (hhmm >= 17 * 60 && hhmm <= 21 * 60) return "PM";
 
   return null;
 }

@@ -31,7 +31,8 @@ async function handleDirectMessage({ senderJid, text }) {
   const name = EXPECTED[senderJid];
   if (!name) return { action: "ignored:not-in-roster" };
 
-  // Help flow continuation?
+  // 1. Help flow continuation? (PRIORITY 1)
+  // If they are already in a help conversation, handle that first.
   const hs = getHelp(senderJid);
   if (hs && hs.step === "ASKED") {
     if (isYes(text)) {
@@ -67,24 +68,26 @@ async function handleDirectMessage({ senderJid, text }) {
     return { action: "help:posted" };
   }
 
-  // Normal thumbs up handling
+  // 2. Check Time Window (PRIORITY 2)
+  const period = getPeriodByWindow();
+
+  // If OUTSIDE the window, ANY message triggers the safety check.
+  if (!period) {
+    setHelp(senderJid, "ASKED");
+    await enqueue(
+      senderJid,
+      "You messaged outside check-in time. Do you need help? Reply YES or NO."
+    );
+    return { action: "help:asked" };
+  }
+
+  // 3. If INSIDE the window, only 👍 marks a check-in.
   if (isThumbsUp(text)) {
-    const period = getPeriodByWindow();
-
-    if (!period) {
-      // Outside window: start help flow
-      setHelp(senderJid, "ASKED");
-      await enqueue(
-        senderJid,
-        "You sent 👍 outside check-in time. Do you need help? Reply YES or NO."
-      );
-      return { action: "help:asked" };
-    }
-
     markCheckin(senderJid, period);
     return { action: "checkin:marked", period };
   }
 
+  // Inside window, but not a thumbs up? Ignore.
   return { action: "ignored:non-checkin" };
 }
 
