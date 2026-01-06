@@ -17,10 +17,13 @@ async function run() {
       await sendText(toJid, text);
     } catch (e) {
       console.error("SEND FAILED:", e);
+      // Optional: Wait a bit longer if there was an error to let the API recover
+      await new Promise((r) => setTimeout(r, 5000));
     }
 
-    // Railway free tier safe delay
-    await new Promise((r) => setTimeout(r, 65_000));
+    // UPDATED: 2 seconds is polite but fast.
+    // Railway's paid tier allows continuous execution, so we don't need 65s anymore.
+    await new Promise((r) => setTimeout(r, 2000));
   }
 
   running = false;
