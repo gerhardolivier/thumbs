@@ -9,9 +9,9 @@ const API_KEY = process.env.WASENDER_API_KEY;
 
 // 1) Put your expected check-in numbers here (digits only, no +)
 const EXPECTED = {
-  27824171483: "You (test)", // replace with real roster
-  // "2782....": "Sipho",
-  // "2783....": "John",
+  "27824171483@s.whatsapp.net": "Gerhard (test)",
+  "27832369302@s.whatsapp.net": "C",
+  "27833583885@s.whatsapp.net": "AHO",
 };
 
 // In-memory checkins: { "YYYY-MM-DD_AM": Set(["2782..."]) }
@@ -97,19 +97,16 @@ app.post("/wa-webhook", async (req, res) => {
 
     // Expected structure from your sample
     const msg = payload?.data?.messages;
-    const senderPn = msg?.key?.cleanedSenderPn; // "2782..."
+    const senderJid = msg?.key?.senderPn; // "2782...@s.whatsapp.net"
     const text = (msg?.messageBody || "").trim();
 
-    if (!senderPn) return res.sendStatus(200);
+    if (!senderJid) return res.sendStatus(200);
+    if (!EXPECTED[senderJid]) return res.sendStatus(200);
 
-    // Only count expected roster
-    if (!EXPECTED[senderPn]) return res.sendStatus(200);
-
-    // Check-in trigger: 👍 (you can add "OK" too if needed)
     if (text === "👍") {
       const { period } = nowParts();
-      markCheckin(senderPn, period);
-      console.log(`CHECKIN ${period}: ${EXPECTED[senderPn]} (${senderPn})`);
+      markCheckin(senderJid, period);
+      console.log(`CHECKIN ${period}: ${EXPECTED[senderJid]} (${senderJid})`);
     }
 
     return res.sendStatus(200);
