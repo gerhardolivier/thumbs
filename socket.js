@@ -4,26 +4,27 @@ const {
   DisconnectReason,
 } = require("@whiskeysockets/baileys");
 const pino = require("pino");
-const { handleDirectMessage } = require("./logic"); // Import your existing logic
+const qrcode = require("qrcode-terminal"); // Import the QR generator
+const { handleDirectMessage } = require("./logic");
 
 let sock;
 
 async function startSock() {
-  // Save login data to a folder named "auth_info_baileys"
   const { state, saveCreds } = await useMultiFileAuthState("auth_info_baileys");
 
   sock = makeWASocket({
     auth: state,
-    printQRInTerminal: true, // This prints the QR code to your logs
-    logger: pino({ level: "silent" }), // Hides noisy logs
+    printQRInTerminal: false, // Turn off the built-in (deprecated) one
+    logger: pino({ level: "silent" }),
   });
 
-  // Handle connection updates (Login, Reconnect, Close)
   sock.ev.on("connection.update", async (update) => {
     const { connection, lastDisconnect, qr } = update;
 
+    // FIX: Manually generate the QR code
     if (qr) {
-      console.log("SCAN THIS QR CODE WITH WHATSAPP LINKED DEVICES:");
+      console.log("SCAN THIS QR CODE:");
+      qrcode.generate(qr, { small: true });
     }
 
     if (connection === "close") {
@@ -36,28 +37,21 @@ async function startSock() {
     }
   });
 
-  // Save credentials whenever they update
   sock.ev.on("creds.update", saveCreds);
 
-  // Listen for incoming messages
   sock.ev.on("messages.upsert", async ({ messages, type }) => {
     if (type !== "notify") return;
 
     for (const m of messages) {
       if (!m.message) continue;
 
-      // Extract Sender JID
       const senderJid = m.key.remoteJid;
 
-      // Extract Text (Handling simple text and replies)
       const textRaw =
-        m.message.conversation ||
-        m.message.extendedTextMessage?.text ||
-        "";
-        
+        m.message.conversation || m.message.extendedTextMessage?.text || "";
+
       const text = textRaw.trim();
 
-      // Only handle DMs (ignore groups for check-in logic)
       if (senderJid.endsWith("@s.whatsapp.net")) {
         console.log(`📩 Received from ${senderJid}: ${text}`);
         await handleDirectMessage({ senderJid, text });
@@ -66,7 +60,6 @@ async function startSock() {
   });
 }
 
-// Helper to send text
 async function sendBaileysText(toJid, text) {
   if (!sock) throw new Error("Socket not ready");
   await sock.sendMessage(toJid, { text });

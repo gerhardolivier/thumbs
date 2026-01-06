@@ -1,4 +1,4 @@
-const { sendBaileysText } = require("./socket"); // Import from new file
+// REMOVED: const { sendBaileysText } = require("./socket"); (This caused the crash)
 
 const queue = [];
 let running = false;
@@ -10,6 +10,10 @@ async function enqueue(toJid, text) {
 
 async function run() {
   running = true;
+
+  // FIX: Lazy load the socket here.
+  // By the time this runs, socket.js is fully loaded, so no circular crash.
+  const { sendBaileysText } = require("./socket");
 
   while (queue.length) {
     const { toJid, text } = queue.shift();
