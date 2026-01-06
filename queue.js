@@ -1,4 +1,4 @@
-const { sendText } = require("./wasender");
+const { sendBaileysText } = require("./socket"); // Import from new file
 
 const queue = [];
 let running = false;
@@ -14,16 +14,16 @@ async function run() {
   while (queue.length) {
     const { toJid, text } = queue.shift();
     try {
-      await sendText(toJid, text);
+      await sendBaileysText(toJid, text);
+      console.log(`Sent to ${toJid}`);
     } catch (e) {
       console.error("SEND FAILED:", e);
-      // Optional: Wait a bit longer if there was an error to let the API recover
+      // Wait 5 seconds if there's a network error
       await new Promise((r) => setTimeout(r, 5000));
     }
 
-    // UPDATED: 2 seconds is polite but fast.
-    // Railway's paid tier allows continuous execution, so we don't need 65s anymore.
-    await new Promise((r) => setTimeout(r, 2000));
+    // Fast delay: 1 second is plenty safe for Baileys
+    await new Promise((r) => setTimeout(r, 1000));
   }
 
   running = false;
