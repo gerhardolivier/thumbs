@@ -143,11 +143,13 @@ app.get("/wa-webhook", (req, res) => res.send("webhook ok (GET)"));
 app.post("/wa-webhook", async (req, res) => {
   try {
     const payload = req.body;
+    console.log("EVENT:", payload.event);
 
     // Expected structure from your sample
     const msg = payload?.data?.messages;
     const senderJid = msg?.key?.senderPn; // "2782...@s.whatsapp.net"
     const text = (msg?.messageBody || "").trim();
+    console.log("RAW PAYLOAD:", JSON.stringify(payload, null, 2));
 
     if (senderJid && EXPECTED[senderJid]) {
       console.log("TEXT RAW:", JSON.stringify(text));
