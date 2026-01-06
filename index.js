@@ -74,6 +74,19 @@ function getPeriodByWindow() {
   return null; // outside check-in windows
 }
 
+function nowParts() {
+  const d = new Date();
+
+  const yyyyMmDd = new Intl.DateTimeFormat("en-CA", {
+    timeZone: TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d); // "2026-01-06"
+
+  return { yyyyMmDd };
+}
+
 function keyFor(period) {
   const { yyyyMmDd } = nowParts();
   return `${yyyyMmDd}_${period}`;
