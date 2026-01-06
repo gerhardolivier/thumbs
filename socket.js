@@ -23,8 +23,14 @@ async function startSock() {
 
     // FIX: Manually generate the QR code
     if (qr) {
-      console.log("SCAN THIS QR CODE:");
+      console.log("Sensitivity: HIGH - QR CODE BELOW");
+      // Print the graphic (just in case)
       qrcode.generate(qr, { small: true });
+
+      console.log("\n====================================================");
+      console.log("CAN'T SCAN? COPY THE TEXT BELOW THIS LINE:");
+      console.log(qr);
+      console.log("====================================================\n");
     }
 
     if (connection === "close") {
