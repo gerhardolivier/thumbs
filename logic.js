@@ -37,10 +37,7 @@ async function handleDirectMessage({ senderJid, text }) {
   if (hs && hs.step === "ASKED") {
     if (isYes(text)) {
       setHelp(senderJid, "WAITING_LOCATION");
-      await enqueue(
-        senderJid,
-        "OK. Send your location now.\nWhatsApp: 📎 → Location → Send current location.\nIf you can’t, reply with nearest landmark."
-      );
+      await enqueue(senderJid, "___LOCATION_REQUEST___");
       return { action: "help:asked-location" };
     }
 
