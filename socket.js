@@ -4,7 +4,6 @@ const {
   DisconnectReason,
 } = require("@whiskeysockets/baileys");
 const pino = require("pino");
-const qrcode = require("qrcode-terminal"); // Import the QR generator
 const { handleDirectMessage } = require("./logic");
 
 let sock;
@@ -14,24 +13,15 @@ async function startSock() {
 
   sock = makeWASocket({
     auth: state,
-    printQRInTerminal: false, // Turn off the built-in (deprecated) one
-    logger: pino({ level: "error" }),
+    printQRInTerminal: false,
+    // CHANGED: Turn on logs so we can see connection issues
+    logger: pino({ level: "info" }),
   });
 
   sock.ev.on("connection.update", async (update) => {
     const { connection, lastDisconnect, qr } = update;
 
-    // FIX: Manually generate the QR code
-    if (qr) {
-      console.log("Sensitivity: HIGH - QR CODE BELOW");
-      // Print the graphic (just in case)
-      qrcode.generate(qr, { small: true });
-
-      console.log("\n====================================================");
-      console.log("CAN'T SCAN? COPY THE TEXT BELOW THIS LINE:");
-      console.log(qr);
-      console.log("====================================================\n");
-    }
+    if (qr) console.log("QR RECEIVED (Copy code from previous step if needed)");
 
     if (connection === "close") {
       const shouldReconnect =
@@ -45,23 +35,32 @@ async function startSock() {
 
   sock.ev.on("creds.update", saveCreds);
 
+  // --- DEBUG MESSAGE HANDLER ---
   sock.ev.on("messages.upsert", async ({ messages, type }) => {
-    // if (type !== "notify") return;
+    // We removed 'if (type !== "notify")' so we see EVERYTHING.
 
     for (const m of messages) {
       if (!m.message) continue;
 
+      // Extract Sender JID
       const senderJid = m.key.remoteJid;
+
+      // LOG EVERYTHING: This will show us exactly who is messaging and what the ID looks like
+      console.log("------------------------------------------------");
+      console.log("MSG RECEIVED FROM:", senderJid);
+      console.log("IS FROM ME?", m.key.fromMe);
+
+      // Ignore messages sent BY the bot itself
+      if (m.key.fromMe) return;
 
       const textRaw =
         m.message.conversation || m.message.extendedTextMessage?.text || "";
-
       const text = textRaw.trim();
 
-      if (senderJid.endsWith("@s.whatsapp.net")) {
-        console.log(`📩 Received from ${senderJid}: ${text}`);
-        await handleDirectMessage({ senderJid, text });
-      }
+      console.log("TEXT CONTENT:", text);
+
+      // Pass to logic
+      await handleDirectMessage({ senderJid, text });
     }
   });
 }
