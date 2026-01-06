@@ -17,6 +17,19 @@ const EXPECTED = {
 // In-memory checkins: { "YYYY-MM-DD_AM": Set(["2782..."]) }
 const checkins = {};
 
+function isThumbsUp(text) {
+  if (!text) return false;
+
+  // Remove whitespace + invisible variation selectors
+  const t = String(text)
+    .trim()
+    .replace(/\uFE0F/g, "") // variation selector
+    .replace(/\u200D/g, ""); // zero-width joiner
+
+  // Match thumbs up + skin-tone variants
+  return t.includes("👍");
+}
+
 function nowParts() {
   const d = new Date();
   const yyyyMmDd = new Intl.DateTimeFormat("en-CA", {
@@ -100,10 +113,14 @@ app.post("/wa-webhook", async (req, res) => {
     const senderJid = msg?.key?.senderPn; // "2782...@s.whatsapp.net"
     const text = (msg?.messageBody || "").trim();
 
+    if (senderJid && EXPECTED[senderJid]) {
+      console.log("TEXT RAW:", JSON.stringify(text));
+    }
+
     if (!senderJid) return res.sendStatus(200);
     if (!EXPECTED[senderJid]) return res.sendStatus(200);
 
-    if (text === "👍") {
+    if (isThumbsUp(text)) {
       const { period } = nowParts();
       markCheckin(senderJid, period);
       console.log(`CHECKIN ${period}: ${EXPECTED[senderJid]} (${senderJid})`);
