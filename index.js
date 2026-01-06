@@ -146,9 +146,12 @@ app.post("/wa-webhook", async (req, res) => {
     console.log("EVENT:", payload.event);
 
     // Expected structure from your sample
-    const msg = payload?.data?.messages;
-    const senderJid = msg?.key?.senderPn; // "2782...@s.whatsapp.net"
-    const text = (msg?.messageBody || "").trim();
+    const msg = payload?.data?.messages || payload?.message?.data?.messages;
+    const senderJid = msg?.key?.senderPn; // may be missing in group events
+    const text = (msg?.messageBody || msg?.conversation || "").trim();
+    const remoteJid = msg?.remoteJid;
+    const isGroup = remoteJid && remoteJid.endsWith("@g.us");
+
     console.log("RAW PAYLOAD:", JSON.stringify(payload, null, 2));
 
     if (senderJid && EXPECTED[senderJid]) {
@@ -169,6 +172,17 @@ app.post("/wa-webhook", async (req, res) => {
   } catch (e) {
     console.error("Webhook error:", e);
     return res.sendStatus(200);
+  }
+});
+
+app.get("/test-group", async (req, res) => {
+  try {
+    const groupJid = process.env.ALERT_GROUP_JID;
+    if (!groupJid) return res.status(400).send("Set ALERT_GROUP_JID");
+    await sendText(groupJid, "Bot test message to group ✅");
+    res.send("sent");
+  } catch (e) {
+    res.status(500).send(String(e));
   }
 });
 
