@@ -15,7 +15,7 @@ async function startSock() {
   sock = makeWASocket({
     auth: state,
     printQRInTerminal: false, // Turn off the built-in (deprecated) one
-    logger: pino({ level: "silent" }),
+    logger: pino({ level: "error" }),
   });
 
   sock.ev.on("connection.update", async (update) => {
