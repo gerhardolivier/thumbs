@@ -7,6 +7,24 @@ const TZ = process.env.TIMEZONE || "Africa/Johannesburg";
 const ADMIN_NUMBER = process.env.ADMIN_NUMBER; // e.g. 2782xxxxxxx
 const API_KEY = process.env.WASENDER_API_KEY;
 
+const cron = require("node-cron");
+
+function summaryText(period) {
+  const s = buildSummary(period);
+  return `${period} check-in: ${s.presentCount}/${s.total}\nMissing: ${
+    s.missingNames.length ? s.missingNames.join(", ") : "None"
+  }`;
+}
+
+async function sendAdminSummary(period) {
+  const ADMIN_JID = process.env.ADMIN_JID;
+  if (!ADMIN_JID) return;
+  await sendText(ADMIN_JID, summaryText(period));
+}
+
+cron.schedule("5 7 * * *", () => sendAdminSummary("AM"), { timezone: TZ });
+cron.schedule("5 19 * * *", () => sendAdminSummary("PM"), { timezone: TZ });
+
 // 1) Put your expected check-in numbers here (digits only, no +)
 const EXPECTED = {
   "27824171483@s.whatsapp.net": "Gerhard (test)",
