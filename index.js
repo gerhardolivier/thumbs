@@ -64,8 +64,9 @@ function buildSummary(period) {
 }
 
 // ---- Wasender send message (endpoint may differ per account; adjust if needed)
-async function sendText(toDigits, text) {
+async function sendText(toJid, text) {
   if (!API_KEY) throw new Error("Missing WASENDER_API_KEY");
+
   const url = "https://api.wasenderapi.com/api/send-message";
 
   const res = await fetch(url, {
@@ -75,8 +76,8 @@ async function sendText(toDigits, text) {
       Authorization: `Bearer ${API_KEY}`,
     },
     body: JSON.stringify({
-      to: `${toDigits}@s.whatsapp.net`,
-      text,
+      to: toJid, // e.g. "27824171483@s.whatsapp.net"
+      text: text,
     }),
   });
 
@@ -121,7 +122,9 @@ app.post("/wa-webhook", async (req, res) => {
 // Manual test: send summary to admin right now
 app.get("/send-summary/:period", async (req, res) => {
   try {
-    if (!ADMIN_NUMBER) return res.status(400).send("Set ADMIN_NUMBER");
+    const ADMIN_JID = process.env.ADMIN_JID;
+    if (!ADMIN_JID) return res.status(400).send("Set ADMIN_JID");
+
     const period = req.params.period === "PM" ? "PM" : "AM";
     const s = buildSummary(period);
 
@@ -129,7 +132,7 @@ app.get("/send-summary/:period", async (req, res) => {
       `${s.period} check-in: ${s.presentCount}/${s.total}\n` +
       `Missing: ${s.missingNames.length ? s.missingNames.join(", ") : "None"}`;
 
-    const r = await sendText(ADMIN_NUMBER, text);
+    const r = await sendText(ADMIN_JID, text);
     res.send(`Sent:\n${text}\n\nAPI:\n${r}`);
   } catch (e) {
     res.status(500).send(String(e));
