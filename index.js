@@ -30,25 +30,30 @@ function isThumbsUp(text) {
   return t.includes("👍");
 }
 
-function nowParts() {
-  const d = new Date();
-  const yyyyMmDd = new Intl.DateTimeFormat("en-CA", {
-    timeZone: TZ,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(d); // "2026-01-06"
-
+function getPeriodByWindow() {
   const hour = Number(
     new Intl.DateTimeFormat("en-GB", {
       timeZone: TZ,
       hour: "2-digit",
       hour12: false,
-    }).format(d)
+    }).format(new Date())
+  );
+  const minute = Number(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: TZ,
+      minute: "2-digit",
+    }).format(new Date())
   );
 
-  const period = hour < 12 ? "AM" : "PM";
-  return { yyyyMmDd, period };
+  const hhmm = hour * 60 + minute;
+
+  // AM window: 05:00–10:00 (adjust if you want)
+  if (hhmm >= 5 * 60 && hhmm <= 10 * 60) return "AM";
+
+  // PM window: 16:00–21:00
+  if (hhmm >= 16 * 60 && hhmm <= 21 * 60) return "PM";
+
+  return null; // outside check-in windows
 }
 
 function keyFor(period) {
@@ -121,7 +126,8 @@ app.post("/wa-webhook", async (req, res) => {
     if (!EXPECTED[senderJid]) return res.sendStatus(200);
 
     if (isThumbsUp(text)) {
-      const { period } = nowParts();
+      const period = getPeriodByWindow();
+      if (!period) return res.sendStatus(200); // ignore thumbs outside windows
       markCheckin(senderJid, period);
       console.log(`CHECKIN ${period}: ${EXPECTED[senderJid]} (${senderJid})`);
     }
