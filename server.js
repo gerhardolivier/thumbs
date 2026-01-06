@@ -3,7 +3,7 @@ const cron = require("node-cron");
 
 const { TZ, ADMIN_JID, ALERT_GROUP_JID } = require("./config");
 const { parseMessage } = require("./parseMessage");
-const { sendText } = require("./wasender");
+const { enqueue } = require("./queue");
 const { EXPECTED, summaryText, handleDirectMessage } = require("./logic");
 
 const app = express();
@@ -53,7 +53,7 @@ app.get("/send-summary/:period", async (req, res) => {
     if (!ADMIN_JID) return res.status(400).send("Set ADMIN_JID");
     const period = req.params.period === "PM" ? "PM" : "AM";
     const text = summaryText(period);
-    const r = await sendText(ADMIN_JID, text);
+    const r = await enqueue(ADMIN_JID, text);
     res.send(`Sent:\n${text}\n\nAPI:\n${r}`);
   } catch (e) {
     res.status(500).send(String(e));
@@ -64,7 +64,7 @@ app.get("/send-summary/:period", async (req, res) => {
 app.get("/test-group", async (req, res) => {
   try {
     if (!ALERT_GROUP_JID) return res.status(400).send("Set ALERT_GROUP_JID");
-    await sendText(ALERT_GROUP_JID, "Bot test message to group ✅");
+    await enqueue(ALERT_GROUP_JID, "Bot test message to group ✅");
     res.send("sent");
   } catch (e) {
     res.status(500).send(String(e));
@@ -74,7 +74,7 @@ app.get("/test-group", async (req, res) => {
 // Cron summaries: 07:05 and 19:05 SA time
 async function sendAdminSummary(period) {
   if (!ADMIN_JID) return;
-  await sendText(ADMIN_JID, summaryText(period));
+  await enqueue(ADMIN_JID, summaryText(period));
 }
 
 cron.schedule("5 7 * * *", () => sendAdminSummary("AM"), { timezone: TZ });

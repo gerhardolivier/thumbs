@@ -2,7 +2,7 @@ const { EXPECTED } = require("./roster");
 const { ALERT_GROUP_JID } = require("./config");
 const { getPeriodByWindow } = require("./time");
 const { markCheckin, buildSummary } = require("./store");
-const { sendText } = require("./wasender");
+const { enqueue } = require("./queue");
 const { setHelp, getHelp, clearHelp, isYes, isNo } = require("./helpFlow");
 
 function isThumbsUp(text) {
@@ -23,7 +23,7 @@ function summaryText(period) {
 
 async function postHelpToGroup(text) {
   if (!ALERT_GROUP_JID) return;
-  await sendText(ALERT_GROUP_JID, text);
+  await enqueue(ALERT_GROUP_JID, text);
 }
 
 // Main handler for an incoming *direct message* from a roster member
@@ -36,7 +36,7 @@ async function handleDirectMessage({ senderJid, text }) {
   if (hs && hs.step === "ASKED") {
     if (isYes(text)) {
       setHelp(senderJid, "WAITING_LOCATION");
-      await sendText(
+      await enqueue(
         senderJid,
         "OK. Send your location now.\nWhatsApp: 📎 → Location → Send current location.\nIf you can’t, reply with nearest landmark."
       );
@@ -45,11 +45,11 @@ async function handleDirectMessage({ senderJid, text }) {
 
     if (isNo(text)) {
       clearHelp(senderJid);
-      await sendText(senderJid, "Ok.");
+      await enqueue(senderJid, "Ok.");
       return { action: "help:cleared" };
     }
 
-    await sendText(senderJid, "Please reply YES or NO.");
+    await enqueue(senderJid, "Please reply YES or NO.");
     return { action: "help:clarify-yes-no" };
   }
 
@@ -57,7 +57,7 @@ async function handleDirectMessage({ senderJid, text }) {
     // Anything they send now becomes location/details
     clearHelp(senderJid);
 
-    await sendText(senderJid, "Got it. Stay safe. Help has been alerted.");
+    await enqueue(senderJid, "Got it. Stay safe. Help has been alerted.");
 
     // Post to group
     await postHelpToGroup(
@@ -74,7 +74,10 @@ async function handleDirectMessage({ senderJid, text }) {
     if (!period) {
       // Outside window: start help flow
       setHelp(senderJid, "ASKED");
-      await sendText(senderJid, "You sent 👍 outside check-in time. Do you need help? Reply YES or NO.");
+      await enqueue(
+        senderJid,
+        "You sent 👍 outside check-in time. Do you need help? Reply YES or NO."
+      );
       return { action: "help:asked" };
     }
 
