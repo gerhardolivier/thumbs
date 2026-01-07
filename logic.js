@@ -1,10 +1,8 @@
-// logic.js
 const { EXPECTED } = require("./roster");
 const { enqueue } = require("./queue");
-const { sendBaileysText } = require("./socket");
 const { resetShift, markSafe, getMissingUsers } = require("./state");
 
-// LOAD GROUP ID FROM ENVIRONMENT VARIABLES
+// LOAD GROUP ID
 const ALERT_GROUP_ID = process.env.ALERT_GROUP_JID;
 
 if (!ALERT_GROUP_ID) {
@@ -15,6 +13,9 @@ if (!ALERT_GROUP_ID) {
 
 // --- TRIGGERED BY SERVER.JS (THE CLOCK) ---
 async function startCheckInRound() {
+  // 🟢 LAZY IMPORT: Import 'socket' here to break the circular dependency
+  const { sendBaileysText } = require("./socket");
+
   console.log("⏰ STARTING CHECK-IN ROUND");
 
   // 1. Reset Memory
@@ -32,6 +33,8 @@ async function startCheckInRound() {
 
   // 3. Schedule Reminder (5 Minutes)
   setTimeout(async () => {
+    // Re-import inside the timeout to be safe
+    const { sendBaileysText } = require("./socket");
     console.log("⏳ Running 5-minute reminder check...");
     const missing = getMissingUsers();
 
@@ -41,15 +44,15 @@ async function startCheckInRound() {
         "⚠️ Check-in Reminder: Please reply *YES* immediately."
       );
     }
-  }, 5 * 60 * 1000); // 5 minutes
+  }, 5 * 60 * 1000);
 
   // 4. Schedule Alert (10 Minutes)
   setTimeout(async () => {
+    const { sendBaileysText } = require("./socket");
     console.log("🚨 Running 10-minute final check...");
     const missing = getMissingUsers();
 
     if (missing.length > 0) {
-      // Create list of missing names
       const missingNames = missing
         .map((jid) => `- ${EXPECTED[jid] || jid}`)
         .join("\n");
@@ -63,22 +66,24 @@ async function startCheckInRound() {
     } else {
       console.log("✅ Shift check complete. All safe.");
     }
-  }, 10 * 60 * 1000); // 10 minutes
+  }, 10 * 60 * 1000);
 }
 
 // --- TRIGGERED BY SOCKET.JS (INCOMING MESSAGES) ---
 async function handleDirectMessage({ senderJid, text }) {
+  // 🟢 LAZY IMPORT HERE TOO
+  const { sendBaileysText } = require("./socket");
+
   const cleanText = text.trim().toUpperCase();
 
-  // 🛠️ SECRET ADMIN TRIGGER
-  // If you send "!FORCE", the bot starts the round instantly.
+  // 🛠️ SECRET FORCE COMMAND
   if (cleanText === "!FORCE") {
     await enqueue(senderJid, "🛠️ Admin: Forcing a check-in round now...");
-    startCheckInRound(); // <--- Manually triggers the function
+    startCheckInRound();
     return;
   }
 
-  // Normalize JID (Fix @lid issues)
+  // Normalize JID
   let realJid = senderJid;
   if (
     !EXPECTED[realJid] &&
@@ -87,7 +92,7 @@ async function handleDirectMessage({ senderJid, text }) {
     realJid = realJid.replace("@lid", "@s.whatsapp.net");
   }
 
-  // 1. Check for YES (Safe)
+  // 1. Check for YES
   if (["YES", "Y", "SAFE", "OK", "👍"].some((w) => cleanText.includes(w))) {
     const wasPending = markSafe(realJid);
 
