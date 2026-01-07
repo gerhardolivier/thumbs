@@ -1,22 +1,26 @@
 // state.js
-// Tracks who has checked in for the CURRENT shift.
-
 let checkInStatus = {}; // { "jid": true/false }
+let isRoundActive = false; // The Master Switch
 
-function resetShift(rosterKeys) {
+function startRound(rosterKeys) {
+  isRoundActive = true;
   checkInStatus = {};
   rosterKeys.forEach((jid) => {
-    checkInStatus[jid] = false; // Default: Not checked in
+    checkInStatus[jid] = false;
   });
-  console.log(
-    "🔄 Shift Reset. Tracking:",
-    Object.keys(checkInStatus).length,
-    "users."
-  );
+  console.log("🟢 Check-in Window OPEN");
+}
+
+function endRound() {
+  isRoundActive = false;
+  console.log("🔴 Check-in Window CLOSED");
+}
+
+function getWindowStatus() {
+  return isRoundActive;
 }
 
 function markSafe(jid) {
-  // Returns true if the user was pending, false if already safe or unknown
   if (checkInStatus.hasOwnProperty(jid)) {
     const wasPending = checkInStatus[jid] === false;
     checkInStatus[jid] = true;
@@ -31,4 +35,10 @@ function getMissingUsers() {
   );
 }
 
-module.exports = { resetShift, markSafe, getMissingUsers };
+module.exports = {
+  startRound,
+  endRound,
+  getWindowStatus,
+  markSafe,
+  getMissingUsers,
+};
