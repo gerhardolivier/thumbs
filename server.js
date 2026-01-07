@@ -1,26 +1,32 @@
 const express = require("express");
 const cron = require("node-cron");
-const { TZ, ADMIN_JID } = require("./config");
-const { startSock } = require("./socket"); // Import the starter
-const { enqueue } = require("./queue");
-const { summaryText } = require("./logic");
+const { startSock } = require("./socket");
+const { startCheckInRound } = require("./logic"); // Import the new logic function
 
 const app = express();
+const port = process.env.PORT || 8080;
 
-// Health check for Railway
-app.get("/", (req, res) => res.send("Bot is running directly on Railway!"));
+// Health Check for Railway
+app.get("/", (req, res) => {
+  res.send("Bot is Running 🤖");
+});
 
-// Start the WhatsApp Connection
-startSock();
+// Start WhatsApp Connection
+startSock().catch((err) => console.error("Failed to start WhatsApp:", err));
 
-// Cron Summaries (Same as before)
-async function sendAdminSummary(period) {
-  if (!ADMIN_JID) return;
-  await enqueue(ADMIN_JID, summaryText(period));
-}
+// --- SCHEDULE ---
+// 07:00 and 19:00 (7 PM)
+cron.schedule(
+  "0 7,19 * * *",
+  () => {
+    console.log("⏰ CRON TRIGGERED: Starting Check-In Round");
+    startCheckInRound();
+  },
+  {
+    timezone: "Africa/Johannesburg",
+  }
+);
 
-cron.schedule("5 7 * * *", () => sendAdminSummary("AM"), { timezone: TZ });
-cron.schedule("5 19 * * *", () => sendAdminSummary("PM"), { timezone: TZ });
-
-const port = process.env.PORT || 3000;
-app.listen(port, () => console.log("Server listening on", port));
+app.listen(port, () => {
+  console.log(`Server listening on ${port}`);
+});

@@ -1,91 +1,114 @@
+// logic.js
 const { EXPECTED } = require("./roster");
-const { ALERT_GROUP_JID } = require("./config");
-const { getPeriodByWindow } = require("./time");
-const { markCheckin, buildSummary } = require("./store");
 const { enqueue } = require("./queue");
-const { setHelp, getHelp, clearHelp, isYes, isNo } = require("./helpFlow");
+const { sendBaileysText } = require("./socket");
+const { resetShift, markSafe, getMissingUsers } = require("./state");
 
-function isThumbsUp(text) {
-  if (!text) return false;
-  const t = String(text)
-    .trim()
-    .replace(/\uFE0F/g, "") // variation selector
-    .replace(/\u200D/g, ""); // zero-width joiner
-  return t.includes("👍");
+// LOAD GROUP ID FROM ENVIRONMENT VARIABLES
+const ALERT_GROUP_ID = process.env.ALERT_GROUP_JID;
+
+if (!ALERT_GROUP_ID) {
+  console.error(
+    "⚠️ FATAL ERROR: ALERT_GROUP_JID is missing in Railway Variables!"
+  );
 }
 
-function summaryText(period) {
-  const s = buildSummary(period, EXPECTED);
-  return `${period} check-in: ${s.presentCount}/${s.total}\nMissing: ${
-    s.missingNames.length ? s.missingNames.join(", ") : "None"
-  }`;
-}
+// --- TRIGGERED BY SERVER.JS (THE CLOCK) ---
+async function startCheckInRound() {
+  console.log("⏰ STARTING CHECK-IN ROUND");
 
-async function postHelpToGroup(text) {
-  if (!ALERT_GROUP_JID) return;
-  await enqueue(ALERT_GROUP_JID, text);
-}
+  // 1. Reset Memory
+  const userJids = Object.keys(EXPECTED);
+  resetShift(userJids);
 
-// Main handler for an incoming *direct message* from a roster member
-async function handleDirectMessage({ senderJid, text }) {
-  const name = EXPECTED[senderJid];
-  if (!name) return { action: "ignored:not-in-roster" };
-
-  // 1. Help flow continuation? (PRIORITY 1)
-  // If they are already in a help conversation, handle that first.
-  const hs = getHelp(senderJid);
-  if (hs && hs.step === "ASKED") {
-    if (isYes(text)) {
-      setHelp(senderJid, "WAITING_LOCATION");
-      await enqueue(senderJid, "___LOCATION_REQUEST___");
-      return { action: "help:asked-location" };
-    }
-
-    if (isNo(text)) {
-      clearHelp(senderJid);
-      await enqueue(senderJid, "Ok.");
-      return { action: "help:cleared" };
-    }
-
-    await enqueue(senderJid, "Please reply YES or NO.");
-    return { action: "help:clarify-yes-no" };
-  }
-
-  if (hs && hs.step === "WAITING_LOCATION") {
-    // Anything they send now becomes location/details
-    clearHelp(senderJid);
-
-    await enqueue(senderJid, "Got it. Stay safe. Help has been alerted.");
-
-    // Post to group
-    await postHelpToGroup(
-      `HELP NEEDED: ${name}\nDetails/location: ${text}\nPlease contact them now.`
-    );
-
-    return { action: "help:posted" };
-  }
-
-  // 2. Check Time Window (PRIORITY 2)
-  const period = getPeriodByWindow();
-
-  // If OUTSIDE the window, ANY message triggers the safety check.
-  if (!period) {
-    setHelp(senderJid, "ASKED");
+  // 2. Send Initial Messages
+  for (const jid of userJids) {
+    const name = EXPECTED[jid];
     await enqueue(
-      senderJid,
-      "You messaged outside check-in time. Do you need help? Reply YES or NO."
+      jid,
+      `👋 Hi ${name}, check-in time.\nReply *YES* to confirm you are safe.`
     );
-    return { action: "help:asked" };
   }
 
-  // 3. If INSIDE the window, only 👍 marks a check-in.
-  if (isThumbsUp(text)) {
-    markCheckin(senderJid, period);
-    return { action: "checkin:marked", period };
-  }
+  // 3. Schedule Reminder (5 Minutes)
+  setTimeout(async () => {
+    console.log("⏳ Running 5-minute reminder check...");
+    const missing = getMissingUsers();
 
-  // Inside window, but not a thumbs up? Ignore.
-  return { action: "ignored:non-checkin" };
+    for (const jid of missing) {
+      await enqueue(
+        jid,
+        "⚠️ Check-in Reminder: Please reply *YES* immediately."
+      );
+    }
+  }, 5 * 60 * 1000); // 5 minutes
+
+  // 4. Schedule Alert (10 Minutes)
+  setTimeout(async () => {
+    console.log("🚨 Running 10-minute final check...");
+    const missing = getMissingUsers();
+
+    if (missing.length > 0) {
+      // Create list of missing names
+      const missingNames = missing
+        .map((jid) => `- ${EXPECTED[jid] || jid}`)
+        .join("\n");
+      const alertMsg = `🚨 *MISSED CHECK-IN REPORT* 🚨\n\nUsers not accounted for:\n${missingNames}\n\nPlease contact them.`;
+
+      try {
+        await sendBaileysText(ALERT_GROUP_ID, alertMsg);
+      } catch (err) {
+        console.error("Failed to alert group:", err);
+      }
+    } else {
+      console.log("✅ Shift check complete. All safe.");
+    }
+  }, 10 * 60 * 1000); // 10 minutes
 }
 
-module.exports = { EXPECTED, summaryText, handleDirectMessage };
+// --- TRIGGERED BY SOCKET.JS (INCOMING MESSAGES) ---
+async function handleDirectMessage({ senderJid, text }) {
+  const cleanText = text.trim().toUpperCase();
+
+  // 🛠️ SECRET ADMIN TRIGGER
+  // If you send "!FORCE", the bot starts the round instantly.
+  if (cleanText === "!FORCE") {
+    await enqueue(senderJid, "🛠️ Admin: Forcing a check-in round now...");
+    startCheckInRound(); // <--- Manually triggers the function
+    return;
+  }
+
+  // Normalize JID (Fix @lid issues)
+  let realJid = senderJid;
+  if (
+    !EXPECTED[realJid] &&
+    EXPECTED[realJid.replace("@lid", "@s.whatsapp.net")]
+  ) {
+    realJid = realJid.replace("@lid", "@s.whatsapp.net");
+  }
+
+  // 1. Check for YES (Safe)
+  if (["YES", "Y", "SAFE", "OK", "👍"].some((w) => cleanText.includes(w))) {
+    const wasPending = markSafe(realJid);
+
+    if (wasPending) {
+      await enqueue(senderJid, "✅ You are marked as SAFE. Have a good shift.");
+      console.log(`[SAFE] ${EXPECTED[realJid]} confirmed.`);
+    } else {
+      await enqueue(senderJid, "👍 Confirmed.");
+    }
+    return;
+  }
+
+  // 2. Check for NO (Danger)
+  if (["NO", "HELP", "SOS", "DANGER"].some((w) => cleanText.includes(w))) {
+    const name = EXPECTED[realJid] || realJid;
+    await sendBaileysText(
+      ALERT_GROUP_ID,
+      `🆘 *EMERGENCY*: ${name} reported DANGER!`
+    );
+    await enqueue(senderJid, "🚨 Alert sent to Admin Group.");
+  }
+}
+
+module.exports = { startCheckInRound, handleDirectMessage };
