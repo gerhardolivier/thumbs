@@ -14,19 +14,15 @@ async function startSock() {
   sock = makeWASocket({
     auth: state,
     printQRInTerminal: false,
-    // CHANGED: Turn on logs so we can see connection issues
     logger: pino({ level: "info" }),
   });
 
   sock.ev.on("connection.update", async (update) => {
     const { connection, lastDisconnect, qr } = update;
-
-    if (qr) console.log("QR RECEIVED (Copy code from previous step if needed)");
-
+    if (qr) console.log("QR RECEIVED:", qr);
     if (connection === "close") {
       const shouldReconnect =
         lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
-      console.log("Connection closed. Reconnecting:", shouldReconnect);
       if (shouldReconnect) startSock();
     } else if (connection === "open") {
       console.log("✅ Connected to WhatsApp!");
@@ -35,31 +31,47 @@ async function startSock() {
 
   sock.ev.on("creds.update", saveCreds);
 
-  // --- DEBUG MESSAGE HANDLER ---
-  sock.ev.on("messages.upsert", async ({ messages, type }) => {
-    // We removed 'if (type !== "notify")' so we see EVERYTHING.
-
+  // --- MESSAGE LISTENER ---
+  sock.ev.on("messages.upsert", async ({ messages }) => {
     for (const m of messages) {
       if (!m.message) continue;
+      if (m.key.fromMe) continue;
 
-      // Extract Sender JID
       const senderJid = m.key.remoteJid;
+      let text = "";
+      let type = "";
 
-      // LOG EVERYTHING: This will show us exactly who is messaging and what the ID looks like
-      console.log("------------------------------------------------");
-      console.log("MSG RECEIVED FROM:", senderJid);
-      console.log("IS FROM ME?", m.key.fromMe);
+      // 1. Conversation (Normal Text)
+      if (m.message.conversation) {
+        text = m.message.conversation;
+        type = "text";
+      }
+      // 2. Extended Text (Replies, etc.)
+      else if (m.message.extendedTextMessage) {
+        text = m.message.extendedTextMessage.text;
+        type = "text";
+      }
+      // 3. Reaction (Tap and hold)
+      else if (m.message.reactionMessage) {
+        text = m.message.reactionMessage.text; // "👍"
+        type = "reaction";
+      }
+      // 4. Sticker (Often confused with emojis)
+      else if (m.message.stickerMessage) {
+        text = "👍"; // Treat ALL stickers as a thumbs up
+        type = "sticker";
+      }
+      // 5. Image (Photo proof)
+      else if (m.message.imageMessage) {
+        text = "👍"; // Treat ALL images as a thumbs up
+        type = "image";
+      }
 
-      // Ignore messages sent BY the bot itself
-      if (m.key.fromMe) return;
+      if (!text) continue;
 
-      const textRaw =
-        m.message.conversation || m.message.extendedTextMessage?.text || "";
-      const text = textRaw.trim();
-
-      console.log("TEXT CONTENT:", text);
-
-      // Pass to logic
+      console.log(
+        `[MSG] From: ${senderJid} | Type: ${type} | Content: ${text}`
+      );
       await handleDirectMessage({ senderJid, text });
     }
   });
@@ -70,31 +82,4 @@ async function sendBaileysText(toJid, text) {
   await sock.sendMessage(toJid, { text });
 }
 
-// Helper to send a special "Request Location" button
-async function sendLocationRequest(toJid, text) {
-  if (!sock) throw new Error("Socket not ready");
-
-  const msg = {
-    viewOnceMessage: {
-      message: {
-        interactiveMessage: {
-          body: { text: text },
-          nativeFlowMessage: {
-            buttons: [
-              {
-                name: "send_location",
-                buttonParamsJson: "", // No params needed for location
-              },
-            ],
-            messageVersion: 1,
-          },
-          type: 3, // 'native_flow' message
-        },
-      },
-    },
-  };
-
-  await sock.sendMessage(toJid, msg);
-}
-
-module.exports = { startSock, sendBaileysText, sendLocationRequest };
+module.exports = { startSock, sendBaileysText };
